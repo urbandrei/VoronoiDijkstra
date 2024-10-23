@@ -1,0 +1,180 @@
+<script> window.onload = () => {
+	canvas = document.createElement("canvas")
+	canvas.style.width = "500px"
+	canvas.style.height = "500px"
+	canvas.style.border = "1px solid #000000"
+	canvas.width = 500
+	canvas.height = 500
+	document.body.appendChild(canvas)
+	ctx = canvas.getContext("2d")
+	ctx.reset()
+	draw = false
+	lastpoint = [-5,-5]
+	shapes = []
+	start = null
+	end = null
+
+	button = document.createElement("button")
+	document.body.appendChild(button)
+	button.innerHTML = "obstacles"
+
+	button.onclick = () => {
+		if(button.innerHTML == "obstacles") {
+			button.innerHTML = "start"
+		} else if(button.innerHTML == "start") {
+			button.innerHTML = "end"
+		} else if(button.innerHTML == "end") {
+			button.innerHTML = "obstacles"
+		}
+	}
+
+	canvas.onmousedown = (e) => {
+		if(button.innerHTML == "obstacles") {
+			ctx.beginPath()
+			ctx.moveTo(e.offsetX,e.offsetY)
+			draw = true
+			shapes.unshift([])
+		} else if(button.innerHTML == "start") {
+			start = [e.offsetX,e.offsetY]
+		} else if(button.innerHTML == "end") {
+			end = [e.offsetX, e.offsetY]
+		}
+	}
+
+	canvas.onmousemove = (e) => {
+		if(button.innerHTML == "obstacles" && draw && ((e.offsetX-lastpoint[0])**2+(e.offsetY-lastpoint[1])**2)**.5>5) {
+			ctx.fillRect(e.offsetX,e.offsetY,1,1)
+			ctx.lineTo(e.offsetX,e.offsetY)
+			shapes[0].unshift([e.offsetX,e.offsetY])
+			ctx.stroke()
+			lastpoint = [e.offsetX,e.offsetY]
+		}
+	}
+
+	canvas.onmouseup = (e) => {
+		draw = false
+		ctx.reset()
+		for(let i=0;i<shapes.length;i++) {
+			ctx.beginPath()
+			ctx.lineWidth = 1
+			for(let j=0;j<shapes[i].length;j++) {
+				if(j==0) {
+					ctx.moveTo(shapes[i][j][0],shapes[i][j][1])
+				} else {
+					ctx.lineTo(shapes[i][j][0],shapes[i][j][1])
+				}
+			}
+			ctx.fill()
+		}
+		ctx.fill()
+		lastpoint = [-10,-10]
+		voronoi = []
+		for(let x=0;x<500;x++) {
+			for(let y=0;y<500;y++) {
+				wallX = Math.min(x,500-x)
+				wallY = Math.min(y,500-y)
+				closest = Math.min(wallX,wallY)
+				closer = Math.max(wallX,wallY)
+				for(let i=0;i<shapes.length;i++) {
+					smol = 500
+					for(let j=0;j<shapes[i].length;j++) {
+						dist = ((shapes[i][j][0]-x)**2+(shapes[i][j][1]-y)**2)**.5
+						if(dist<smol) {
+							smol = dist
+						}
+					}
+					if (smol<closest) {
+						closer = closest
+						closest = smol
+					} else if(smol<closer) {
+						closer = smol
+					}
+				}
+				if(closer-closest < 1) {
+					voronoi.push([x,y])
+				}
+			}
+		}
+		for(let i=0;i<voronoi.length;i++) {
+			ctx.fillRect(voronoi[i][0],voronoi[i][1],1,1)
+		}
+		if(start != null) {
+			ctx.fillRect(start[0]-4,start[1]-4,8,8)
+		}
+		if(end != null) {
+			ctx.fillRect(end[0]-4,end[1]-4,8,8)
+		}
+
+		if(start!=null && end!=null) {
+			start_index = -1
+			end_index = -1
+			for(let i =0;i<voronoi.length;i++) {
+				if(start_index==-1 || ((voronoi[start_index][0]-start[0])**2+(voronoi[start_index][1]-start[1])**2)**.5 > ((voronoi[i][0]-start[0])**2+(voronoi[i][1]-start[1])**2)**.5) {
+					start_index = i
+				}
+				if(end_index==-1 || ((voronoi[end_index][0]-end[0])**2+(voronoi[end_index][1]-end[1])**2)**.5 > ((voronoi[i][0]-end[0])**2+(voronoi[i][1]-end[1])**2)**.5) {
+                                        end_index = i
+                                }
+			}
+
+			graph = new Map()
+			ind = []
+
+			for(let i=0;i<voronoi.length;i++) {
+				ind.push[i]
+			}
+			for(let i=0;i<voronoi.length;i++) {
+				graph.set(i,[])
+				for(let j=0;j<voronoi.length;j++) {
+					if(i!=j && ((voronoi[i][0]-voronoi[j][0])**2+(voronoi[i][1]-voronoi[j][1])**2)**.5<3) {
+						graph.get(i).push(j)
+					}
+				}
+			}
+
+			distances = Array(voronoi.length).fill(Infinity)
+			previous = Array(voronoi.length).fill(null)
+			distances[start_index]=0
+
+			visited = []
+			while(visited.length<voronoi.length) {
+				console.log(visited.length + "/" + voronoi.length)
+				smol = -1
+				for(let i=0;i<voronoi.length;i++) {
+					if(visited.indexOf(i)==-1 && (smol==-1 ||distances[smol]>distances[i])) {
+						smol = i
+					}
+				}
+				if(smol==end_index) {
+					break
+				}
+
+				visited.push(smol)
+
+				graph.get(smol).forEach(n => {
+					if(visited.indexOf(n)==-1) {
+						temp = distances[smol]+1
+						if(temp<distances[n]) {
+							distances[n]=temp
+							previous[n]=smol
+						}
+					}
+				})
+			}
+			path = []
+			for(let i = end_index; i !== null; i=previous[i]) {
+				path.push(i)
+			}
+			path.reverse()
+			ctx.beginPath()
+			ctx.lineWidth = 3
+			ctx.moveTo(start[0],start[1])
+			for(let i=0;i<path.length;i++) {
+				ctx.lineTo(voronoi[path[i]][0],voronoi[path[i]][1])
+			}
+			ctx.lineTo(end[0],end[1])
+			ctx.stroke()
+
+		}
+	}
+} </script>
